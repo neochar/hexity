@@ -6,6 +6,10 @@ class Server:
 
     def __init__(self, name):
         self.players.append({
+            'name': 'AI',
+            'id': 0
+        })
+        self.players.append({
             'name': name,
             'id': 1
         })
@@ -33,14 +37,21 @@ class Server:
             [1,1,1,1,0,0,0,0,0,0],
 
         ]
+        self.units = []
 
-        self.units = [
-            {
-                'x': 7,
-                'y': 2,
-                'n': 4
-            }
-        ]
+        self.units.append({
+            'x': 7,
+            'y': 7,
+            'n': 2,
+            'player': self.players[0]
+        })
+
+        self.units.append({
+            'x': 7,
+            'y': 2,
+            'n': 9,
+            'player': self.players[1]
+        })
 
         return {
             'map': self.map,
