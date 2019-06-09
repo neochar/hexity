@@ -13,6 +13,10 @@ class Server:
             'name': name,
             'id': 1
         })
+        self.players.append({
+            'name': name,
+            'id': 2
+        })
 
         pass
 
@@ -51,6 +55,13 @@ class Server:
             'y': 2,
             'n': 9,
             'player': self.players[1]
+        })
+
+        self.units.append({
+            'x': 0,
+            'y': 1,
+            'n': 6,
+            'player': self.players[2]
         })
 
         return {

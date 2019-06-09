@@ -27,6 +27,9 @@ class Client:
         },
         {
             'color': color.BLUE
+        },
+        {
+            'color': color.GREEN
         }
     ]
 
@@ -322,7 +325,9 @@ class Client:
     def count_moves(self):
         self.moves_left = 0
         for unit in self.units:
-            self.moves_left += unit['n'] if unit['n'] > 1 else 0
+            self.moves_left += unit['n'] \
+                if unit['n'] > 1 and unit['player']['id'] == self.player \
+                else 0
         pass
 
     def quit(self):
