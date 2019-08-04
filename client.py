@@ -1,12 +1,11 @@
 import os
 import random
-import time
 from getch import getch
-from server import Server
-from pprint import pprint
+import socket
+import json
 
 
-class color:
+class format:
     PURPLE = '\033[95m'
     CYAN = '\033[96m'
     DARKCYAN = '\033[36m'
@@ -20,16 +19,15 @@ class color:
 
 
 class Client:
-
     players = [
         {
-            'color': color.RED
+            'color': format.RED
         },
         {
-            'color': color.BLUE
+            'color': format.BLUE
         },
         {
-            'color': color.GREEN
+            'color': format.GREEN
         }
     ]
 
@@ -43,32 +41,41 @@ class Client:
         self.name = name
         self.cursor = []
         self.unit_selected = None
+        self.sock = None
 
     def connect(self):
-        self.server = Server(self.name)
-        self.map_w = 10
-        self.map_h = 10
-        map = self.server.get_map(
-            self.map_w,
-            self.map_h
-        )
-        self.map = map['map']
-        self.units = map['units']
+        """
+        Connect to server
+        """
 
-        self.cursor = [
-            random.randint(0, self.map_w),
-            random.randint(0, self.map_h) - 2,
-        ]
+        # self.server = Server(self.name)
+
+        self.sock = self.create_socket()
+        self.get_game()
+
         pass
 
     def run(self):
-        while (1):
-            self.update()
-            self.render()
-            self.input()
+        """
+        Infinie game cycle
+        """
+
+        while 1:
+            try:
+                self.update()
+                self.render()
+                self.input()
+            except KeyboardInterrupt:
+                self.shutdown()
+
         pass
 
     def render(self, do_hex=True):
+        """
+        Render the map and units
+        :param do_hex:
+        """
+
         # os.system('cls') # Windows only
         # os.system('clear')
 
@@ -81,9 +88,9 @@ class Client:
                 if [x, y] == self.cursor:
                     if unit and self.unit_selected == unit:
                         line.append(' {}{}{}'.format(
-                            color.BOLD,
+                            format.BOLD,
                             unit['n'],
-                            color.END
+                            format.END
                         ))
                     elif unit:
                         line.append(' {}'.format(
@@ -95,17 +102,18 @@ class Client:
                     unit_char = '{}{}{}'.format(
                         self.players[unit['player']['id']]['color'],
                         unit['n'],
-                        color.END
+                        format.END
                     )
                     if self.unit_selected == unit:
                         line.append(' {}{}{}'.format(
-                            color.BOLD,
+                            format.BOLD,
                             unit_char,
-                            color.END
+                            format.END
                         ))
                     else:
                         line.append(' {}'.format(unit_char))
                 else:
+                    # Cell == 1 -> ground, cell == 0 -> space
                     if cell == 0:
                         line.append(' .')
                     else:
@@ -115,9 +123,13 @@ class Client:
             if y % 2 == 0 and do_hex:
                 line.append(' ')
 
+        # Render map
         print('\n'.join(''.join(line) for line in output))
         print()
+
+        # Render info
         print(self.cursor)
+
         if self.is_end_of_turn:
             if self.power_left > 0:
                 print('Power left: {}'.format(self.power_left))
@@ -154,6 +166,11 @@ class Client:
         print('\n' * 6)
 
     def input(self):
+        """
+
+        :return:
+        """
+
         try:
             command = getch()
         except OverflowError:
@@ -180,7 +197,6 @@ class Client:
 
     def move_cursor(self, dx, dy):
         """
-
         :param dx:
         :param dy:
         :return:
@@ -221,9 +237,6 @@ class Client:
                     if cursor_new[0] < self.unit_selected['x']:
                         return
 
-
-
-
         if self.map[cursor_new[1]][cursor_new[0]] != 0:
             if dy:
                 if not is_y_odd:
@@ -250,17 +263,25 @@ class Client:
         return None
 
     def action(self):
-        unit = self.find_unit(self.cursor[0], self.cursor[1])
+        """
+
+        :return:
+        """
+
+        # `unit` is what we have under cursor
+        unit_under_cursor = self.find_unit(self.cursor[0], self.cursor[1])
 
         if not self.is_end_of_turn:
             if self.unit_selected:
-                if [self.unit_selected['x'], self.unit_selected['y']] == self.cursor:
-                    self.unit_selected = None
+                if [
+                    self.unit_selected['x'],
+                    self.unit_selected['y']
+                ] == self.cursor:
+                    self.unselect_unit()
                     return
                 else:
-                    # Unit selected, cursor not on selected unit
-                    if not unit:
-                        # Do move
+                    if not uni_under_cursort:
+                        # Unit movement
                         unit_new = self.unit_selected.copy()
                         unit_new['n'] -= 1
                         unit_new['x'] = self.cursor[0]
@@ -271,23 +292,32 @@ class Client:
                         )
                         self.unit_reset(unit_old)
                         if unit_new['n'] == 1:
-                            self.unit_selected = None
+                            self.unselect_unit()
                         else:
                             self.unit_selected = unit_new.copy()
                         self.units.append(unit_new)
                         return
-                    elif unit['player']['id'] != self.player:
-                        self.attack(unit)
+                    elif unit_under_cursor['player']['id'] != self.player:
+                        # Unit attack
+                        self.attack(unit_under_cursor)
 
-
-        if self.is_end_of_turn:
-            if unit and self.power_left > 0:
-                if self.unit_power_up(unit):
-                    self.power_left -= 1
-        else:
-            if unit is None or unit['n'] < 2:
-                return
-            self.unit_selected = unit.copy()
+        # Make sure we select / powerup our player un_under_cursorit
+        if unit_under_cursor and unit_under_cursor['player'][
+            'id'] == self.player:
+            if self.is_end_of_turn:
+                # Unit powerup
+                if unit_under_cursor and self.power_left > 0:
+                    if self.unit_power_up(unit_under_cursor):
+                        self.power_left -= 1
+            else:
+                # unit_under_cursor['n'] is unit power (1, 2, 3, ... 8)
+                if any([
+                    unit_under_cursor is None,
+                    unit_under_cursor['n'] < 2
+                ]):
+                    return
+                # Unit selection
+                self.unit_selected = unit_under_cursor.copy()
         pass
 
     def unit_reset(self, unit):
@@ -300,8 +330,12 @@ class Client:
         return False
 
     def count_power(self):
+        """
+        TODO Make sure end of turn check is neccessary
+        """
         if not self.is_end_of_turn:
-            self.power_left = len(self.units)
+            self.power_left = len([unit for unit in self.units if
+                                   unit['player']['id'] == self.player])
         pass
 
     def end_of_turn(self):
@@ -309,16 +343,24 @@ class Client:
             self.new_turn()
             return
 
+        self.unselect_unit()
+        self.count_power()
         self.is_end_of_turn = True
-        self.unit_selected = None
         pass
+
+    def unselect_unit(self):
+        self.unit_selected = None
 
     def new_turn(self):
         self.is_end_of_turn = False
         pass
 
     def update(self):
-        self.count_power()
+        """
+        Do update game counters
+        """
+
+        # self.count_power()
         self.count_moves()
         pass
 
@@ -338,7 +380,7 @@ class Client:
         pass
 
     def cancel(self):
-        self.unit_selected = None
+        self.unselect_unit()
         pass
 
     def attack(self, unit):
@@ -369,7 +411,64 @@ class Client:
         if unit['n'] > 1:
             self.unit_selected = unit.copy()
 
+        pass
 
+    def shutdown(self):
+        self.sock.close()
+        exit()
+
+    def create_socket(self):
+        """
+
+        :return:
+        """
+        sock = socket.socket()
+        sock.connect(('localhost', 9090))
+
+        return sock
+
+        pass
+
+    def send(self, command, data=None):
+        """
+        :param command:
+        :param data:
+        """
+        request = {
+            'player': self.player,
+            'command': command,
+            'data': data
+        }
+
+        self.sock.send(str.encode(
+            json.dumps(request)
+        ))
+
+        response_raw = self.sock.recv(1024 * 10)
+        print(response_raw)
+        exit()
+        response = json.loads(
+            response_raw.decode('utf-8')
+        )
+
+        if response['success'] is False:
+            print(response['message'])
+            self.shutdown()
+
+        return response['data']
+
+    def get_game(self):
+        map = self.send('get_map')
+
+        self.map_w = len(map['map'][0])
+        self.map_h = len(map['map'])
+        self.map = map['map']
+        self.units = map['units']
+
+        self.cursor = [
+            random.randint(0, self.map_w),
+            random.randint(0, self.map_h) - 2,
+        ]
         pass
 
 
@@ -378,7 +477,7 @@ def main():
     name = 'neochar'
     client = Client(name)
     client.connect()
-    client.run()
+    # client.run()
 
 
 if __name__ == '__main__':
