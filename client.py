@@ -384,6 +384,8 @@ class Client:
         pass
 
     def attack(self, unit):
+        # TODO Move this part to server
+        # TODO Get damage and update units
         probability = .0
         diff = self.unit_selected['n'] - unit['n']
         if diff >= 2:
